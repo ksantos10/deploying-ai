@@ -1,0 +1,159 @@
+from langchain.tools import tool
+import chromadb
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+from pydantic import BaseModel, Field
+import os
+from dotenv import load_dotenv
+import gradio as gr
+
+#load secrets and chromadb
+load_dotenv()
+vector_db_client_url = "http://localhost:8000"
+chroma = chromadb.HttpClient(host=vector_db_client_url)
+#initialize collection with embedding function
+collection = chroma.get_collection(name="book_reviews",
+                                    embedding_function=OpenAIEmbeddingFunction(
+                                        api_key=os.getenv("OPENAI_API_KEY"),
+                                        model_name="text-embedding-3-small"))
+#Book data to be added to the collection
+# Top 50 books on english literature collection setup
+collection_name = "top_50_books_english_literature"
+if collection_name not in chroma.list_collections():
+    chroma.create_collection(name=collection_name, 
+                              embedding_function=OpenAIEmbeddingFunction(
+                                  api_key=os.getenv("OPENAI_API_KEY"), 
+                                  model_name="text-embedding-3-small"))
+
+#Book data to be added to the collection
+book_data = [
+    {"id": "1", "title": "Pride and Prejudice", "author": "Jane Austen", "review": "A romantic novel that critiques the British gentry at the end of the 18th century.", "score": 9.1},
+    {"id": "2", "title": "1984", "author": "George Orwell", "review": "Dystopian novel set in a totalitarian state under constant surveillance.", "score": 9.5},
+    {"id": "3", "title": "Moby Dick", "author": "Herman Melville", "review": "A novel about the voyage of the whaling ship Pequod.", "score": 8.7},
+    {"id": "4", "title": "The Great Gatsby", "author": "F. Scott Fitzgerald", "review": "A narrative of the Jazz Age and the American dream.", "score": 9.0},
+    {"id": "5", "title": "To Kill a Mockingbird", "author": "Harper Lee", "review": "A profound commentary on class, race, and moral growth.", "score": 9.4},
+    {"id": "6", "title": "Jane Eyre", "author": "Charlotte Brontë", "review": "A revolutionary novel about a woman's quest for autonomy.", "score": 8.8},
+    {"id": "7", "title": "Wuthering Heights", "author": "Emily Brontë", "review": "A story of passionate love and revenge on the Yorkshire moors.", "score": 8.6},
+    {"id": "8", "title": "Brave New World", "author": "Aldous Huxley", "review": "A dystopian story depicting a future society driven by advanced technology.", "score": 9.2},
+    {"id": "9", "title": "Crime and Punishment", "author": "Fyodor Dostoevsky", "review": "Explores morality, guilt, and redemption through the story of a murder.", "score": 9.1},
+    {"id": "10", "title": "The Catcher in the Rye", "author": "J.D. Salinger", "review": "A novel that explores themes of angst and alienation in adolescent life.", "score": 8.5},
+    {"id": "11", "title": "The Picture of Dorian Gray", "author": "Oscar Wilde", "review": "A philosophical novel about aestheticism and moral duplicity.", "score": 8.9},
+    {"id": "12", "title": "The Brothers Karamazov", "author": "Fyodor Dostoevsky", "review": "An exploration of faith, doubt, and morality.", "score": 9.3},
+    {"id": "13", "title": "The Grapes of Wrath", "author": "John Steinbeck", "review": "A family's journey across America during the Great Depression.", "score": 9.0},
+    {"id": "14", "title": "The Old Man and the Sea", "author": "Ernest Hemingway", "review": "A tale of struggle and perseverance against the odds.", "score": 8.8},
+    {"id": "15", "title": "Little Women", "author": "Louisa May Alcott", "review": "A novel about the lives of the four March sisters and their coming-of-age.", "score": 8.7},
+    {"id": "16", "title": "Anna Karenina", "author": "Leo Tolstoy", "review": "A complex novel about love, family, and societal norms.", "score": 9.0},
+    {"id": "17", "title": "Fahrenheit 451", "author": "Ray Bradbury", "review": "A dystopian novel about a future society where books are banned.", "score": 9.4},
+    {"id": "18", "title": "Catch-22", "author": "Joseph Heller", "review": "A satirical novel about the absurdities of war.", "score": 8.9},
+    {"id": "19", "title": "The Hobbit", "author": "J.R.R. Tolkien", "review": "A fantasy novel that serves as a prelude to the Lord of the Rings.", "score": 9.5},
+    {"id": "20", "title": "Dracula", "author": "Bram Stoker", "review": "The quintessential Gothic horror novel that introduced Count Dracula.", "score": 8.8},
+    {"id": "21", "title": "Heart of Darkness", "author": "Joseph Conrad", "review": "A novella that explores imperialism and human nature.", "score": 8.6},
+    {"id": "22", "title": "The Bell Jar", "author": "Sylvia Plath", "review": "A semi-autobiographical novel about a woman's struggle with identity.", "score": 9.0},
+    {"id": "23", "title": "A Tale of Two Cities", "author": "Charles Dickens", "review": "A historical novel set in London and Paris before and during the French Revolution.", "score": 9.2},
+    {"id": "24", "title": "The Handmaid's Tale", "author": "Margaret Atwood", "review": "A dystopian novel set in a totalitarian society that subjugates women.", "score": 9.3},
+    {"id": "25", "title": "Suite Française", "author": "Irène Némirovsky", "review": "A novel about life in France during World War II.", "score": 9.1},
+    {"id": "26", "title": "Gone with the Wind", "author": "Margaret Mitchell", "review": "A novel set during the American Civil War, focusing on the life of Scarlett O'Hara.", "score": 8.8},
+    {"id": "27", "title": "The Fault in Our Stars", "author": "John Green", "review": "A poignant love story between two teenagers with cancer.", "score": 8.7},
+    {"id": "28", "title": "The Alchemist", "author": "Paulo Coelho", "review": "A philosophical novel about a shepherd's journey to realize his personal legend.", "score": 9.0},
+    {"id": "29", "title": "Emma", "author": "Jane Austen", "review": "A comedy of manners about a young woman's misguided matchmaking efforts.", "score": 8.9},
+    {"id": "30", "title": "The Kite Runner", "author": "Khaled Hosseini", "review": "A story of friendship and redemption set against the backdrop of a changing Afghanistan.", "score": 9.4},
+    {"id": "31", "title": "Madame Bovary", "author": "Gustave Flaubert", "review": "A novel of romantic disillusionment and the pursuit of happiness.", "score": 8.8},
+    {"id": "32", "title": "Beloved", "author": "Toni Morrison", "review": "A powerful narrative about the legacy of slavery.", "score": 9.5},
+    {"id": "33", "title": "The Color Purple", "author": "Alice Walker", "review": "Story of African American women in the early 20th century American South.", "score": 9.1},
+    {"id": "34", "title": "The Outsiders", "author": "S.E. Hinton", "review": "A story about teenage rebellion and class conflict.", "score": 8.6},
+    {"id": "35", "title": "The Catcher in the Rye", "author": "J.D. Salinger", "review": "A classic coming-of-age story that critiques adult society.", "score": 8.7},
+    {"id": "36", "title": "Life of Pi", "author": "Yann Martel", "review": "A fantastical survival story that explores themes of spirituality and practicality.", "score": 9.2},
+    {"id": "37", "title": "The Road", "author": "Cormac McCarthy", "review": "A post-apocalyptic tale of a father and son's journey across a decimated landscape.", "score": 9.3},
+    {"id": "38", "title": "The Brief Wondrous Life of Oscar Wao", "author": "Junot Díaz", "review": "A Pulitzer Prize-winning novel about a Dominican-American boy and his family's curse.", "score": 8.8},
+    {"id": "39", "title": "The Road", "author": "Cormac McCarthy", "review": "A survival story of a father and son in a post-apocalyptic world.", "score": 9.3},
+    {"id": "40", "title": "The Sun Also Rises", "author": "Ernest Hemingway", "review": "A novel about a group of American and British expatriates in 1920s Europe.", "score": 8.7},
+    {"id": "41", "title": "Their Eyes Were Watching God", "author": "Zora Neale Hurston", "review": "A story about a woman's self-discovery in the early 20th century America.", "score": 9.0},
+    {"id": "42", "title": "One Hundred Years of Solitude", "author": "Gabriel García Márquez", "review": "A multi-generational story about the Buendía family in the fictional town of Macondo.", "score": 9.2},
+    {"id": "43", "title": "The Bell Jar", "author": "Sylvia Plath", "review": "A semi-autobiographical novel about a young woman's descent into mental illness.", "score": 9.1},
+    {"id": "44", "title": "A Clockwork Orange", "author": "Anthony Burgess", "review": "A dystopian novel exploring themes of free will and state control.", "score": 8.8},
+    {"id": "45", "title": "The Adventures of Huckleberry Finn", "author": "Mark Twain", "review": "Critiques society's morals while telling the adventures of a young boy.", "score": 9.0},
+    {"id": "46", "title": "A Passage to India", "author": "E.M. Forster", "review": "Deals with the tensions between the British and Indians during the colonial era.", "score": 9.0},
+    {"id": "47", "title": "The Stranger", "author": "Albert Camus", "review": "A novel reflecting existentialist themes through the story of Meursault.", "score": 8.9},
+    {"id": "48", "title": "The Road", "author": "Cormac McCarthy", "review": "A haunting tale of a father and son's journey through a post-apocalyptic landscape.", "score": 9.4},
+    {"id": "49", "title": "The Importance of Being Earnest", "author": "Oscar Wilde", "review": "A farce about mistaken identities and societal expectations.", "score": 9.5},
+    {"id": "50", "title": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "review": "A satirical novel that critiques the bombing of Dresden during WWII.", "score": 9.0},
+]
+
+# populate with book data
+def populate_books_collection(book_data):
+    for book in book_data:
+        try:
+         
+            chroma.add_to_collection(
+                collection_name=collection_name,
+                texts=[book["review"]],
+                documents=[{"title": book["title"], "author": book["author"], "score": book["score"]}],
+                ids=[book["id"]]  
+            )
+            print(f"Added book: {book['title']} to collection.")
+        except Exception as e:
+            print(f"Error adding book {book['title']}: {e}")
+
+populate_books_collection(book_data)
+
+
+class BookReviewData(BaseModel):
+    """Structured book review data response."""
+    title: str = Field(..., description="The title of the book.")
+    author: str = Field(..., description="The author of the book.")
+    review: str = Field(..., description="A portion of the book review.")
+    score: float = Field(None, description="The rating of the book on a scale of 0 to 10.")
+
+@tool
+def recommend_books(query: str, n_results: int = 3) -> str:
+    """Fetche book review data based on the query. Return formatted results."""
+ 
+    results = collection.query(
+        query_texts=[query],
+        n_results=n_results
+    )
+    
+    if not results['documents']:
+        return "No results found."
+
+    recommendations = []
+
+    for idx, custom_id in enumerate(results['ids'][0]):
+        book_id = get_book_id_from_custom_id(custom_id) 
+        details = additional_book_details(book_id) 
+        
+        # REcommendation will show title, author, review and score
+        rec = f"**Title:** {details.get('title', 'N/A')}\n"
+        rec += f"**Author:** {details.get('author', 'N/A')}\n"
+        rec += f"**Review:** {results['documents'][0][idx]}\n"
+        rec += f"**Score:** {details.get('score', 0.0)}\n\n"
+        
+        recommendations.append(rec)
+
+    return ''.join(recommendations)
+
+def get_book_id_from_custom_id(custom_id: str) -> str:
+    """Extract book ID from custom ID."""
+    return custom_id.split('_')[0]
+
+def additional_book_details(book_id: str) -> dict:
+    """Fetch additional details for a given book ID. Placeholder for actual implementation."""
+    return {
+        "title": "Sample Book Title",
+        "author": "Sample Author",
+        "score": 8.5  
+    }
+
+def query_books(user_input):
+    """Function to handle user query and return book recommendations."""
+    return recommend_books(user_input)
+#Gradio
+with gr.Blocks() as app:
+    gr.Markdown("# Book Recommendation System")
+    input_textbox = gr.Textbox(label="Enter your book:")
+    output_textbox = gr.Markdown(label="Recommendations")
+    submit_button = gr.Button("Get Recommendations")
+
+    submit_button.click(fn=query_books, inputs=input_textbox, outputs=output_textbox)
+
+if __name__ == "__main__":
+    app.launch()

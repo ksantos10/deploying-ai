@@ -1,0 +1,94 @@
+##Service 1:  local URL:  http://127.0.0.1:7869
+
+#load secrets
+
+from dotenv import load_dotenv
+load_dotenv('../05_src/.secrets')
+
+#import libraries
+# Libraries
+import os
+import gradio as gr
+import textwrap  
+import requests
+
+from openai import OpenAI
+client = OpenAI()
+
+#restricted topics list
+restricted_topics = ["cat", "cats", "dog", "dogs", "horoscope", "zodiac", "taylor swift"]
+
+def contains_restricted_topic(text):
+    """Check if the input text contains any restricted topics."""
+    return any(topic in text.lower() for topic in restricted_topics)
+
+def get_weather(location):
+    """Fetch the weather data for the specified location."""
+    
+    if contains_restricted_topic(location):
+        return "Sorry, this topic is restricted and cannot be processed."
+
+
+def get_weather(location):
+    """Fetch the weather data for the identified location."""
+    
+    if contains_restricted_topic(location):
+        return "Sorry, this topic is restricted. Only use a city."
+    
+   
+    location = location.strip() if location.strip() else 'Toronto'  #making toronto as default location if no input given
+    access_key = '42022e7e53881d2ac5c4da168a908172' 
+    url = f"http://api.weatherstack.com/current?access_key={access_key}&query={location}&units=m"
+    
+    response = requests.get(url)
+    data = response.json()
+    
+    
+    if "success" in data and not data["success"]:
+        return f"Error: {data['error']['info']}"
+    
+#choosing which fields to extract from the weather API response
+    location_name = data.get('location', {}).get('name', 'Unknown location')
+    country = data.get('location', {}).get('country', '')
+    temperature = data.get('current', {}).get('temperature', 'N/A')
+    weather_desc = data.get('current', {}).get('weather_descriptions', ["N/A"])[0]
+    wind_speed = data.get('current', {}).get('wind_speed', 'N/A')
+    humidity = data.get('current', {}).get('humidity', 'N/A')
+    feelslike = data.get('current', {}).get('feelslike', 'N/A')
+    uv_index = data.get('current', {}).get('uv_index', 'N/A')
+
+#user prompt for weather summary
+    
+    user_prompt = (
+        f"WeatherBot, summarize the following weather data for a user, using your engaging style, act like you are a CBC weather reporter. "
+        f"Location: {location_name}, {country}\n"
+        f"Condition: {weather_desc}\n"
+        f"Temperature: {temperature}°C\n"
+        f"Feels like: {feelslike}°C\n"
+        f"Humidity: {humidity}%\n"
+        f"Wind speed: {wind_speed} km/h\n"
+        f"UV index: {uv_index}\n"
+    )
+    
+#response from OpenAI API  
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": user_prompt}]
+    )
+    summary = response.choices[0].message.content.strip()
+
+    return textwrap.fill(summary, width=70)
+    
+    
+def gradio_interface():
+    """Create the Gradio interface."""
+    iface = gr.Interface(
+        fn=get_weather,
+        inputs="text",
+        outputs="text",
+        title="WeatherBot",
+        description="Enter a city name to get the current weather information."
+    )
+    iface.launch()
+
+gradio_interface()
