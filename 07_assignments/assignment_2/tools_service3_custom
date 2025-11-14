@@ -1,0 +1,79 @@
+import gradio as gr
+import requests
+import random
+
+# List of restricted topics
+RESTRICTED_TOPICS = [
+    "cat", "cats", "dog", "dogs", "kitty", "puppy", "doggy",
+    "horoscope", "zodiac", "aries", "taurus", "gemini", "cancer",
+    "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn",
+    "aquarius", "pisces", "taylor swift", "swift", "tay tay",
+]
+
+def topic_guardrail(user_input):
+    """Check if the user is asking for restricted topics."""
+    lowered = user_input.lower()
+    return any(topic in lowered for topic in RESTRICTED_TOPICS)
+
+def get_random_job_fact():
+    jobs_url = "https://api.dataatwork.org/v1/jobs?limit=20"
+    try:
+        jobs_resp = requests.get(jobs_url, timeout=8)
+        jobs_resp.raise_for_status()
+        jobs = jobs_resp.json()
+    except Exception:
+        return "Sorry, I'm having trouble reaching the job trivia database right now."
+    if not jobs:
+        return "Hmm, I can't find any jobs at the moment!"
+
+    job = random.choice(jobs)
+    job_title = job.get("title", "Unknown Job")
+    job_uuid = job.get("uuid")
+    skill_fact = ""
+
+    if job_uuid:
+        detail_url = f"https://api.dataatwork.org/v1/jobs/{job_uuid}"
+        try:
+            details_resp = requests.get(detail_url, timeout=8)
+            details_resp.raise_for_status()
+            details = details_resp.json()
+            skills = details.get("skills", [])
+            if skills:
+                skill = random.choice(skills)
+                skill_name = skill.get("name", "an unnamed skill")
+                skill_fact = f"For example, one important skill for a {job_title} is: '{skill_name}'."
+            else:
+                skill_fact = f"There are no specific skills listed for {job_title}."
+        except Exception:
+            skill_fact = f"I couldn't fetch the skills for '{job_title}' just now."
+    else:
+        skill_fact = f"No detailed info found for {job_title}."
+
+    personality = random.choice([
+        "Did you know?",
+        "Hey amigo, check this out:",
+        "Career fun fact:",
+        "For your next trivia night:",
+        "Here's something cool:"
+    ])
+    return f"{personality} The job '{job_title}' exists in the database. {skill_fact}"
+
+def job_trivia_service(message, history):
+    """Chat interface function with memory and guardrails."""
+    if topic_guardrail(message):
+        return "Sorry, I can't answer questions about cats, dogs, horoscopes, or Taylor Swift."
+   
+    response = get_random_job_fact()
+    return response
+
+# Gradio
+chat = gr.ChatInterface(
+    fn=job_trivia_service,
+    title="Job Skills Trivia Service",
+    description="Get random fun facts about jobs and the skills they require. (No cats/dogs, horoscopes, or Taylor Swift allowed!)",
+    theme="soft",
+    examples=["Give me a job fact!", "Tell me a random career trivia!", "What is a cool skill for a job?"]
+)
+
+if __name__ == "__main__":
+    chat.launch()
